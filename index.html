@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Robo Invaders</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+   
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        font-family: sans-serif;
+        background: radial-gradient(circle, #0a1128 0%, #000 100%);
+      }
+  
+      canvas {
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+  
+      #score, #level, #lives, #pauseButton, #continueButton, #description {
+        position: absolute;
+        font-size: 18px;
+        z-index: 10;
+      }
+  
+      #score {
+        top: 10px;
+        left: 20px;
+        color: #00ffcc;
+        text-shadow: 0 0 8px #00ffcc; /* Neon glow */
+        font-family: 'Orbitron', sans-serif; /* Robotic font */
+      }
+  
+      #level {
+        top: 10px;
+        right: 20px;
+        color: #ffaa00;
+        text-shadow: 0 0 8px #00ffcc; /* Neon glow */
+        font-family: 'Orbitron', sans-serif; /* Robotic font */
+      }
+  
+      #lives {
+        top: 40px;
+        left: 20px;
+        color: #ff0000;
+        text-shadow: 0 0 8px #00ffcc; /* Neon glow */
+        font-family: 'Orbitron', sans-serif; /* Robotic font */
+      }
+  
+      #highScore {
+        top: 40px;
+        right: 20px;
+        color: #ff00ff;
+        text-shadow: 0 0 8px #00ffcc; /* Neon glow */
+        font-family: 'Orbitron', sans-serif; /* Robotic font */
+        text-align:right;
+      }
+
+
+      
+      #pauseButton, #continueButton {
+        top: 80px;
+        left: 20px;
+        padding: 5px 10px;
+        font-size: 16px;
+        color: white;
+        background-color: #007acc;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+  
+      #continueButton {
+        top: 120px;
+        background-color: #28a745;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+  
+      #pauseButton:hover {
+        background-color: #0099ff;
+      }
+  
+      #continueButton:hover {
+        background-color: #45c260;
+      }
+  
+      #description {
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+        color: #ccc;
+        font-size: 16px;
+      }
+  
+      #gameOver, #levelUpText {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 48px;
+        color: red;
+        z-index: 10;
+        opacity: 0;
+        transition: opacity 0.5s ease-in-out;
+      }
+  
+      #levelUpText {
+        color: #00ffcc;
+      }
+  
+      #gameOver.show, #levelUpText.show {
+        opacity: 1;
+      }
+  
+      #restartButton {
+        position: absolute;
+        top: 60%;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 20px;
+        font-size: 18px;
+        color: white;
+        background-color: #ffaa00;
+        border: none;
+        cursor: pointer;
+        display: none;
+        z-index: 10;
+      }
+  
+      #restartButton:hover {
+        background-color: #ffcc00;
+      }
+
+      #gameCanvas {
+        background: radial-gradient(circle, #0a1128 0%, #000 100%);
+        border: 2px solid #00ffcc;
+        box-shadow: 0 0 20px #00ffcc, inset 0 0 20px #00ffcc;
+      }
+     
+              @keyframes popUp {
+          0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+          50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+
+    </style>
+  </head>
+  <body>
+
+    
+    
+<div id="score">Score: 0</div>
+<div id="newHighScorePopup" style="display: none; position: absolute; top: 20%; left: 50%; transform: translateX(-50%); font-size: 2rem; color: gold; font-weight: bold; animation: popUp 1s ease-out;">🎉 New High Score! 🎉</div>
+
+<div id="level">Level: 1</div>
+<div id="lives">Lives: 3</div>
+<div id="highScore">High Score: 0</div>
+
+<button id="pauseButton">Pause</button>
+<button id="continueButton" style="display:none;">Continue</button>
+
+<div id="description">Use A/D or Arrow Keys to move, Spacebar to shoot</div>
+<div id="gameOver">Game Over!</div>
+<div id="levelUpText"></div>
+<button id="restartButton">Restart Game</button>
+
+<!-- 🎯 Game Canvas -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- 🏆 Leaderboard Panel -->
+<div id="leaderboard" style="position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7); padding: 10px; border-radius: 8px; color: white; max-width: 200px; z-index: 999;">
+  <h3 style="margin-top: 50px; font-size: 16px;">🏆 Leaderboard</h3>
+  <ol id="leaderboard-list" style="padding-left: 1.2em; margin: 0;"></ol>
+</div>
+
+
+    <script>
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    
+      const scoreDisplay = document.getElementById('score');
+      const highScoreDisplay = document.getElementById('highScore');
+      const levelDisplay = document.getElementById('level');
+      const livesDisplay = document.getElementById('lives');
+      const gameOverDisplay = document.getElementById('gameOver');
+      const levelUpText = document.getElementById('levelUpText');
+      const restartButton = document.getElementById('restartButton');
+      const pauseButton = document.getElementById('pauseButton');
+      const continueButton = document.getElementById('continueButton');
+    
+      const cloudEndpoint = "https://savescofunction-haxhmuaujk.cn-hangzhou.fcapp.run";
+    
+      let highScore = 0;
+    
+      async function loadHighScore() {
+        try {
+          const res = await fetch(cloudEndpoint);
+          const data = await res.json();
+          highScore = data.highScore || 0;
+          highScoreDisplay.textContent = "High Score: " + highScore;
+        } catch (e) {
+          console.error("Failed to load high score:", e);
+        }
+      }
+    
+      function saveHighScore(score, username) {
+  if (score > highScore) {
+    highScore = score;
+    highScoreDisplay.textContent = "High Score: " + highScore;
+    showNewHighScorePopup();
+  }
+
+  fetch(cloudEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ score: score, username: username }),
+  })
+    .then(response => response.json())
+    .then(data => {
+      console.log('High score saved:', data);
+    })
+    .catch(error => {
+      console.error('Error saving high score:', error);
+    });
+}
+
+
+function showNewHighScorePopup() {
+  const popup = document.getElementById('newHighScorePopup');
+  popup.style.display = 'block';
+  popup.style.animation = 'popUp 1s ease-out';
+  
+  setTimeout(() => {
+    popup.style.display = 'none';
+  }, 1000);
+}
+
+
+
+
+    
+      const shooterImage = new Image();
+      shooterImage.src = 'https://robot-invaders-assets.oss-eu-west-1.aliyuncs.com/robotShooter-removebg-preview.png';
+    
+      const enemyImage = new Image();
+      enemyImage.src = 'https://robot-invaders-assets.oss-eu-west-1.aliyuncs.com/newRobotEnemies-removebg-preview.png';
+    
+      const player = { x: canvas.width / 2 - 20, y: canvas.height - 60, width: 40, height: 40, speed: 5 };
+      const bullets = [], enemies = [], enemyBullets = [];
+      let score = 0, level = 1, lives = 3;
+      let isGameOver = false, isPaused = false, isLevelUpInProgress = false;
+      let keys = {};
+    
+      const movementTypes = [
+        { name: "horizontal", dx: 1.5, dy: 0, desc: "Side-to-side" },
+        { name: "zigzag", dx: 1.2, dy: 0.5, desc: "Diagonal weaving" },
+        { name: "dive", dx: 0.8, dy: 1, desc: "Aggressive charging" },
+        { name: "circular", dx: 0, dy: 0, radius: 30, desc: "Orbiting" }
+      ];
+    
+      function spawnEnemies() {
+        enemies.length = 0;
+        const isBoss = level % 5 === 0;
+        let move = level <= 3 ? movementTypes[0] : level <= 6 ? movementTypes[1] : movementTypes[2];
+        if (isBoss) move = movementTypes[3];
+    
+        move = JSON.parse(JSON.stringify(move));
+        move.dx *= 1 + level * 0.1;
+        move.dy *= 1 + level * 0.1;
+    
+        if (isBoss) {
+          enemies.push({
+            x: canvas.width / 2 - 100,
+            y: 60,
+            width: 200,
+            height: 100,
+            health: 1000,
+            isBoss: true,
+            movement: move,
+            angle: 0,
+            originX: canvas.width / 2,
+            originY: 100
+          });
+        } else {
+          const cols = Math.min(8, 4 + Math.floor(level / 2));
+          const rows = Math.min(3, 1 + Math.floor(level / 3));
+          const offsetX = canvas.width / 2 - (cols * 60) / 2;
+          const offsetY = 50;
+    
+          for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+              enemies.push({
+                x: offsetX + col * 60,
+                y: offsetY + row * 60,
+                width: 48,
+                height: 48,
+                health: 100 + level * 20,
+                isBoss: false,
+                movement: JSON.parse(JSON.stringify(move)),
+                angle: Math.random() * Math.PI * 2,
+                originX: offsetX + col * 60,
+                originY: offsetY + row * 60
+              });
+            }
+          }
+        }
+      }
+    
+      function updateEnemyPositions() {
+        enemies.forEach(enemy => {
+          const m = enemy.movement;
+          switch (m.name) {
+            case "horizontal":
+              enemy.x += m.dx;
+              if (enemy.x <= 0 || enemy.x + enemy.width >= canvas.width) {
+                m.dx *= -1;
+                enemy.y += 20;
+              }
+              break;
+            case "zigzag":
+              enemy.x += m.dx;
+              enemy.y += m.dy;
+              if (enemy.x <= 0 || enemy.x + enemy.width >= canvas.width) m.dx *= -1;
+              if (enemy.y <= 50 || enemy.y >= 200) m.dy *= -1;
+              break;
+            case "dive":
+              enemy.x += m.dx * Math.sign(player.x - enemy.x);
+              enemy.y += m.dy;
+              if (enemy.y > canvas.height) enemy.y = -50;
+              break;
+            case "circular":
+              enemy.angle += 0.02;
+              enemy.x = enemy.originX + Math.cos(enemy.angle) * m.radius;
+              enemy.y = enemy.originY + Math.sin(enemy.angle) * m.radius;
+              break;
+          }
+        });
+      }
+    
+      function shootBullet() {
+        bullets.push({ x: player.x + player.width / 2 - 3, y: player.y, width: 6, height: 10, speed: 7, color: 'yellow' });
+      }
+    
+      function enemyShoot(enemy) {
+        enemyBullets.push({
+          x: enemy.x + enemy.width / 2 - 3,
+          y: enemy.y + enemy.height,
+          width: 6, height: 10,
+          speed: 4,
+          color: 'red'
+        });
+      }
+    
+      function checkCollisions() {
+        bullets.forEach((b, i) => {
+          enemies.forEach((e, j) => {
+            if (b.x < e.x + e.width && b.x + b.width > e.x && b.y < e.y + e.height && b.y + b.height > e.y) {
+              e.health -= 20;
+              score += e.isBoss ? 50 : 10;
+              bullets.splice(i, 1);
+              scoreDisplay.textContent = "Score: " + score;
+              if (e.health <= 0) enemies.splice(j, 1);
+            }
+          });
+        });
+    
+        enemyBullets.forEach((b, i) => {
+          if (b.x < player.x + player.width && b.x + b.width > player.x && b.y < player.y + player.height && b.y + b.height > player.y) {
+            lives--;
+            livesDisplay.textContent = "Lives: " + lives;
+            enemyBullets.splice(i, 1);
+            if (lives <= 0) endGame();
+          }
+        });
+    
+        enemies.forEach((e, i) => {
+          if (e.x < player.x + player.width && e.x + e.width > player.x && e.y < player.y + player.height && e.y + e.height > player.y) {
+            enemies.splice(i, 1);
+            lives--;
+            livesDisplay.textContent = "Lives: " + lives;
+            if (lives <= 0) endGame();
+          }
+        });
+      }
+    
+      function endGame() {
+        isGameOver = true;
+        gameOverDisplay.classList.add('show');
+        restartButton.style.display = 'inline';
+        pauseButton.style.display = 'none';
+        saveHighScore(score, "player1");
+      }
+    
+      function showLevelMessage(msg) {
+        levelUpText.textContent = msg;
+        levelUpText.classList.add('show');
+        setTimeout(() => levelUpText.classList.remove('show'), 1500);
+      }
+    
+      function nextLevel() {
+        if (isLevelUpInProgress) return;
+        isLevelUpInProgress = true;
+        level++;
+        levelDisplay.textContent = "Level: " + level;
+        const move = level % 5 === 0 ? movementTypes[3] : movementTypes[level <= 3 ? 0 : level <= 6 ? 1 : 2];
+        showLevelMessage(`LEVEL ${level}: ${move.desc}`);
+        spawnEnemies();
+        setTimeout(() => isLevelUpInProgress = false, 1500);
+      }
+    
+      function restartGame() {
+        score = 0; level = 1; lives = 3;
+        bullets.length = enemies.length = enemyBullets.length = 0;
+        isGameOver = false; isPaused = false;
+        scoreDisplay.textContent = "Score: 0";
+        levelDisplay.textContent = "Level: 1";
+        livesDisplay.textContent = "Lives: 3";
+        gameOverDisplay.classList.remove('show');
+        restartButton.style.display = 'none';
+        pauseButton.style.display = 'inline';
+        spawnEnemies();
+        loadHighScore();
+        update();
+      }
+    
+      function update() {
+        if (isGameOver || isPaused) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (keys['a'] || keys['ArrowLeft']) player.x -= player.speed;
+        if (keys['d'] || keys['ArrowRight']) player.x += player.speed;
+        player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+        ctx.drawImage(shooterImage, player.x, player.y, player.width, player.height);
+    
+        bullets.forEach((b, i) => {
+          b.y -= b.speed;
+          ctx.fillStyle = b.color;
+          ctx.fillRect(b.x, b.y, b.width, b.height);
+          if (b.y < 0) bullets.splice(i, 1);
+        });
+    
+        updateEnemyPositions();
+        enemies.forEach(e => {
+          ctx.drawImage(enemyImage, e.x, e.y, e.width, e.height);
+          ctx.fillStyle = 'red';
+          ctx.fillRect(e.x, e.y - 10, e.width, 5);
+          ctx.fillStyle = 'green';
+          ctx.fillRect(e.x, e.y - 10, e.width * (e.health / (e.isBoss ? 1000 : 100 + level * 20)), 5);
+        });
+    
+        enemyBullets.forEach((b, i) => {
+          b.y += b.speed;
+          ctx.fillStyle = b.color;
+          ctx.fillRect(b.x, b.y, b.width, b.height);
+          if (b.y > canvas.height) enemyBullets.splice(i, 1);
+        });
+    
+        checkCollisions();
+        if (!isLevelUpInProgress && enemies.length === 0) nextLevel(); // ← FIXED this line
+        requestAnimationFrame(update);
+      }
+    
+      document.addEventListener('keydown', e => {
+        keys[e.key] = true;
+        if ((e.key === ' ' || e.key === 'Spacebar') && !isGameOver && !isPaused) shootBullet();
+      });
+    
+      document.addEventListener('keyup', e => keys[e.key] = false);
+    
+      pauseButton.addEventListener('click', () => {
+        isPaused = true;
+        pauseButton.style.display = 'none';
+        continueButton.style.display = 'inline';
+      });
+    
+      continueButton.addEventListener('click', () => {
+        isPaused = false;
+        pauseButton.style.display = 'inline';
+        continueButton.style.display = 'none';
+        update();
+      });
+    
+      restartButton.addEventListener('click', restartGame);
+    
+      setInterval(() => {
+        if (!isPaused && !isGameOver && enemies.length > 0) {
+          const bosses = enemies.filter(e => e.isBoss);
+          const regulars = enemies.filter(e => !e.isBoss);
+          bosses.forEach(b => Math.random() < 0.5 && enemyShoot(b));
+          const shooter = regulars[Math.floor(Math.random() * regulars.length)];
+          if (shooter && Math.random() < 0.02) enemyShoot(shooter);
+        }
+      }, 500);
+    
+      restartGame();
+    </script>
+    <script>
+      window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        player.x = canvas.width / 2 - player.width / 2;
+      });
+    
+      loadHighScore();
+    </script>    
+  
+</body>
+</html>
