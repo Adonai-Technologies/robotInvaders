@@ -64,8 +64,27 @@
         text-align:right;
       }
 
-
+      #newHighScorePopup {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 2rem;
+        color: gold;
+        font-weight: bold;
+        display: none;
+        z-index: 100;
+        text-shadow: 0 0 10px #ff0, 0 0 20px #ff0;
+        animation-fill-mode: forwards;
+        pointer-events: none;
+      }
       
+      @keyframes popUp {
+        0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+        50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+        100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+      }
+
       #pauseButton, #continueButton {
         top: 80px;
         left: 20px;
@@ -144,43 +163,31 @@
         border: 2px solid #00ffcc;
         box-shadow: 0 0 20px #00ffcc, inset 0 0 20px #00ffcc;
       }
-     
-              @keyframes popUp {
-          0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-          50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-          100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
-        }
-
     </style>
   </head>
   <body>
+    <div id="score">Score: 0</div>
+    <div id="newHighScorePopup">🎉 New High Score! 🎉</div>
+    <div id="level">Level: 1</div>
+    <div id="lives">Lives: 3</div>
+    <div id="highScore">High Score: 0</div>
 
-    
-    
-<div id="score">Score: 0</div>
-<div id="newHighScorePopup" style="display: none; position: absolute; top: 20%; left: 50%; transform: translateX(-50%); font-size: 2rem; color: gold; font-weight: bold; animation: popUp 1s ease-out;">🎉 New High Score! 🎉</div>
+    <button id="pauseButton">Pause</button>
+    <button id="continueButton" style="display:none;">Continue</button>
 
-<div id="level">Level: 1</div>
-<div id="lives">Lives: 3</div>
-<div id="highScore">High Score: 0</div>
+    <div id="description">Use A/D or Arrow Keys to move, Spacebar to shoot</div>
+    <div id="gameOver">Game Over!</div>
+    <div id="levelUpText"></div>
+    <button id="restartButton">Restart Game</button>
 
-<button id="pauseButton">Pause</button>
-<button id="continueButton" style="display:none;">Continue</button>
+    <!-- 🎯 Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
 
-<div id="description">Use A/D or Arrow Keys to move, Spacebar to shoot</div>
-<div id="gameOver">Game Over!</div>
-<div id="levelUpText"></div>
-<button id="restartButton">Restart Game</button>
-
-<!-- 🎯 Game Canvas -->
-<canvas id="gameCanvas"></canvas>
-
-<!-- 🏆 Leaderboard Panel -->
-<div id="leaderboard" style="position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7); padding: 10px; border-radius: 8px; color: white; max-width: 200px; z-index: 999;">
-  <h3 style="margin-top: 50px; font-size: 16px;">🏆 Leaderboard</h3>
-  <ol id="leaderboard-list" style="padding-left: 1.2em; margin: 0;"></ol>
-</div>
-
+    <!-- 🏆 Leaderboard Panel -->
+    <div id="leaderboard" style="position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7); padding: 10px; border-radius: 8px; color: white; max-width: 200px; z-index: 999;">
+      <h3 style="margin-top: 50px; font-size: 16px;">🏆 Leaderboard</h3>
+      <ol id="leaderboard-list" style="padding-left: 1.2em; margin: 0;"></ol>
+    </div>
 
     <script>
       const canvas = document.getElementById('gameCanvas');
@@ -202,52 +209,73 @@
     
       let highScore = 0;
     
+      // Load high score from localStorage first, then try cloud
       async function loadHighScore() {
+        // Check localStorage first
+        const localHighScore = localStorage.getItem('roboInvadersHighScore');
+        if (localHighScore) {
+          highScore = parseInt(localHighScore);
+          highScoreDisplay.textContent = "High Score: " + highScore;
+        }
+        
+        // Then try to load from cloud
         try {
           const res = await fetch(cloudEndpoint);
           const data = await res.json();
-          highScore = data.highScore || 0;
-          highScoreDisplay.textContent = "High Score: " + highScore;
+          const cloudHighScore = data.highScore || 0;
+          
+          // Use the higher score between local and cloud
+          if (cloudHighScore > highScore) {
+            highScore = cloudHighScore;
+            localStorage.setItem('roboInvadersHighScore', highScore);
+            highScoreDisplay.textContent = "High Score: " + highScore;
+          }
         } catch (e) {
-          console.error("Failed to load high score:", e);
+          console.error("Failed to load cloud high score:", e);
         }
       }
     
       function saveHighScore(score, username) {
-  if (score > highScore) {
-    highScore = score;
-    highScoreDisplay.textContent = "High Score: " + highScore;
-    showNewHighScorePopup();
-  }
+        if (score > highScore) {
+          highScore = score;
+          highScoreDisplay.textContent = "High Score: " + highScore;
+          localStorage.setItem('roboInvadersHighScore', highScore);
+          showNewHighScorePopup();
+        }
 
-  fetch(cloudEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ score: score, username: username }),
-  })
-    .then(response => response.json())
-    .then(data => {
-      console.log('High score saved:', data);
-    })
-    .catch(error => {
-      console.error('Error saving high score:', error);
-    });
-}
+        // Still try to save to cloud
+        fetch(cloudEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ score: score, username: username }),
+        })
+          .then(response => response.json())
+          .then(data => {
+            console.log('High score saved to cloud:', data);
+          })
+          .catch(error => {
+            console.error('Error saving high score to cloud:', error);
+          });
+      }
 
-
-function showNewHighScorePopup() {
-  const popup = document.getElementById('newHighScorePopup');
-  popup.style.display = 'block';
-  popup.style.animation = 'popUp 1s ease-out';
-  
-  setTimeout(() => {
-    popup.style.display = 'none';
-  }, 1000);
-}
-
-
-
-
+      function showNewHighScorePopup() {
+        const popup = document.getElementById('newHighScorePopup');
+        
+        // Reset animation
+        popup.style.display = 'none';
+        void popup.offsetWidth; // Trigger reflow
+        popup.style.display = 'block';
+        
+        // Apply animation
+        popup.style.animation = 'none';
+        void popup.offsetWidth; // Trigger reflow again
+        popup.style.animation = 'popUp 2s ease-out';
+        
+        // Hide after animation completes
+        setTimeout(() => {
+          popup.style.display = 'none';
+        }, 2000);
+      }
     
       const shooterImage = new Image();
       shooterImage.src = 'https://robot-invaders-assets.oss-eu-west-1.aliyuncs.com/robotShooter-removebg-preview.png';
@@ -465,7 +493,7 @@ function showNewHighScorePopup() {
         });
     
         checkCollisions();
-        if (!isLevelUpInProgress && enemies.length === 0) nextLevel(); // ← FIXED this line
+        if (!isLevelUpInProgress && enemies.length === 0) nextLevel();
         requestAnimationFrame(update);
       }
     
@@ -512,6 +540,5 @@ function showNewHighScorePopup() {
     
       loadHighScore();
     </script>    
-  
-</body>
+  </body>
 </html>
